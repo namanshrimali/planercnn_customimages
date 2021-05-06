@@ -62,24 +62,24 @@ def train(options):
         print("Loading pretrained weights ", model_path)
         model.load_weights(model_path)
         pass
-    print("x94028920")
-    if options.trainingMode != '':
-        ## Specify which layers to train, default is "all"
-        layer_regex = {
-            ## all layers but the backbone
-            "heads": r"(fpn.P5\_.*)|(fpn.P4\_.*)|(fpn.P3\_.*)|(fpn.P2\_.*)|(rpn.*)|(classifier.*)|(mask.*)",
-            ## From a specific Resnet stage and up
-            "3+": r"(fpn.C3.*)|(fpn.C4.*)|(fpn.C5.*)|(fpn.P5\_.*)|(fpn.P4\_.*)|(fpn.P3\_.*)|(fpn.P2\_.*)|(rpn.*)|(classifier.*)|(mask.*)",
-            "4+": r"(fpn.C4.*)|(fpn.C5.*)|(fpn.P5\_.*)|(fpn.P4\_.*)|(fpn.P3\_.*)|(fpn.P2\_.*)|(rpn.*)|(classifier.*)|(mask.*)",
-            "5+": r"(fpn.C5.*)|(fpn.P5\_.*)|(fpn.P4\_.*)|(fpn.P3\_.*)|(fpn.P2\_.*)|(rpn.*)|(classifier.*)|(mask.*)",
-            ## All layers
-            "all": ".*",
-            "classifier": "(classifier.*)|(mask.*)|(depth.*)",
-        }
-        assert(options.trainingMode in layer_regex.keys())
-        layers = layer_regex[options.trainingMode]
-        model.set_trainable(layers)
-        pass
+    # print("x94028920")
+    # if options.trainingMode != '':
+    #     ## Specify which layers to train, default is "all"
+    #     layer_regex = {
+    #         ## all layers but the backbone
+    #         "heads": r"(fpn.P5\_.*)|(fpn.P4\_.*)|(fpn.P3\_.*)|(fpn.P2\_.*)|(rpn.*)|(classifier.*)|(mask.*)",
+    #         ## From a specific Resnet stage and up
+    #         "3+": r"(fpn.C3.*)|(fpn.C4.*)|(fpn.C5.*)|(fpn.P5\_.*)|(fpn.P4\_.*)|(fpn.P3\_.*)|(fpn.P2\_.*)|(rpn.*)|(classifier.*)|(mask.*)",
+    #         "4+": r"(fpn.C4.*)|(fpn.C5.*)|(fpn.P5\_.*)|(fpn.P4\_.*)|(fpn.P3\_.*)|(fpn.P2\_.*)|(rpn.*)|(classifier.*)|(mask.*)",
+    #         "5+": r"(fpn.C5.*)|(fpn.P5\_.*)|(fpn.P4\_.*)|(fpn.P3\_.*)|(fpn.P2\_.*)|(rpn.*)|(classifier.*)|(mask.*)",
+    #         ## All layers
+    #         "all": ".*",
+    #         "classifier": "(classifier.*)|(mask.*)|(depth.*)",
+    #     }
+    #     assert(options.trainingMode in layer_regex.keys())
+    #     layers = layer_regex[options.trainingMode]
+    #     model.set_trainable(layers)
+    #     pass
 
     trainables_wo_bn = [param for name, param in model.named_parameters() if param.requires_grad and not 'bn' in name]
     trainables_only_bn = [param for name, param in model.named_parameters() if param.requires_grad and 'bn' in name]
@@ -103,34 +103,36 @@ def train(options):
         optimizer.load_state_dict(torch.load(options.checkpoint_dir + '/optim.pth'))        
         pass
      
-    print("104")
+    # print("104")
+    print(f"Starting training for {options.numEpochs} epochs")
     for epoch in range(options.numEpochs):
-        print("epcoh reached")
+        # print("epcoh reached")
         epoch_losses = []
         data_iterator = tqdm(dataloader, total=len(dataset) + 1)
 
         optimizer.zero_grad()
-        print("110")
+        # print("110")
         for sampleIndex, sample in enumerate(data_iterator):
-            print(sample)
-            print("002")
+            print(f"Starting epoch: {sampleIndex}")
+            # print(sample)
+            # print("002")
             losses = []            
 
             input_pair = []
             detection_pair = []
             dicts_pair = []
-            print("reached 2")
+            # print("reached 2")
             camera = sample[30][0].cuda()   
                      
             for indexOffset in [0, 13]:
                 images, image_metas, rpn_match, rpn_bbox, gt_class_ids, gt_boxes, gt_masks, gt_parameters, gt_depth, extrinsics, gt_plane, gt_segmentation, plane_indices = sample[indexOffset + 0].cuda(), sample[indexOffset + 1].numpy(), sample[indexOffset + 2].cuda(), sample[indexOffset + 3].cuda(), sample[indexOffset + 4].cuda(), sample[indexOffset + 5].cuda(), sample[indexOffset + 6].cuda(), sample[indexOffset + 7].cuda(), sample[indexOffset + 8].cuda(), sample[indexOffset + 9].cuda(), sample[indexOffset + 10].cuda(), sample[indexOffset + 11].cuda(), sample[indexOffset + 12].cuda()
 
                 if indexOffset == 13:
-                    print("continuiing")
+                    # print("continuiing")
                     input_pair.append({'image': images, 'depth': gt_depth, 'mask': gt_masks, 'bbox': gt_boxes, 'extrinsics': extrinsics, 'segmentation': gt_segmentation, 'plane': gt_plane, 'camera': camera})
                     continue
-                print("reached 1")
-                print("images shape",images.shape)
+                # print("reached 1")
+                # print("images shape",images.shape)
                 rpn_class_logits, rpn_pred_bbox, target_class_ids, mrcnn_class_logits, target_deltas, mrcnn_bbox, target_mask, mrcnn_mask, target_parameters, mrcnn_parameters, detections, detection_masks, detection_gt_parameters, detection_gt_masks, rpn_rois, roi_features, roi_indices, feature_map, depth_np_pred = model.predict([images, image_metas, gt_class_ids, gt_boxes, gt_masks, gt_parameters, camera], mode='training_detection', use_nms=2, use_refinement='refinement' in options.suffix, return_feature_map=True)
 
                 rpn_class_loss, rpn_bbox_loss, mrcnn_class_loss, mrcnn_bbox_loss, mrcnn_mask_loss, mrcnn_parameter_loss = compute_losses(config, rpn_match, rpn_bbox, rpn_class_logits, rpn_pred_bbox, target_class_ids, mrcnn_class_logits, target_deltas, mrcnn_bbox, target_mask, mrcnn_mask, target_parameters, mrcnn_parameters)
@@ -146,12 +148,12 @@ def train(options):
                     normal_np_loss = l2LossMask(normal_np_pred[:, 80:560], gt_normal[:, 80:560], (torch.norm(gt_normal[:, 80:560], dim=0) > 1e-4).float())
                     losses.append(depth_np_loss)
                     losses.append(normal_np_loss)
-                    print("depth ckpt1")
+                    # print("depth ckpt1")
                 else:
                     depth_np_loss = l1LossMask(depth_np_pred[:, 80:560], gt_depth[:, 80:560], (gt_depth[:, 80:560] > 1e-4).float())
                     losses.append(depth_np_loss)
                     normal_np_pred = None
-                    print("depth ckpt2")
+                    # print("depth ckpt2")
                     pass
 
                 if len(detections) > 0:
@@ -167,7 +169,7 @@ def train(options):
                     plane_XYZ = torch.zeros((1, 3, config.IMAGE_MAX_DIM, config.IMAGE_MAX_DIM)).cuda()                        
                     pass
 
-                print("E45")
+                # print("E45")
                 input_pair.append({'image': images, 'depth': gt_depth, 'mask': gt_masks, 'bbox': gt_boxes, 'extrinsics': extrinsics, 'segmentation': gt_segmentation, 'parameters': detection_gt_parameters, 'plane': gt_plane, 'camera': camera})
                 detection_pair.append({'XYZ': XYZ_pred, 'depth': XYZ_pred[1:2], 'mask': detection_mask, 'detection': detections, 'masks': detection_masks, 'feature_map': feature_map[0], 'plane_XYZ': plane_XYZ, 'depth_np': depth_np_pred})
 
@@ -187,7 +189,7 @@ def train(options):
                     losses.append(depth_loss)                                                
                     pass                    
                 continue
-            print("E456")
+            # print("E456")
             if (len(detection_pair[0]['detection']) > 0 and len(detection_pair[0]['detection']) < 30) and 'refine' in options.suffix:
                 ## Use refinement network
                 pose = sample[26][0].cuda()
@@ -243,7 +245,7 @@ def train(options):
                 masks_gt_large = (segmentation == segments_gt.view((-1, 1, 1))).float()
                 masks_gt_small = masks_gt_large[:, ::4, ::4]
                 planes_gt = input_dict['plane'][0][segments_gt]
-                print("E459")
+                # print("E459")
 
                 ## Run the refinement network
                 results = refine_model(image, image_2, camera, masks_inp, detection_dict['detection'][:, 6:9], plane_depth, depth_np)
@@ -340,7 +342,7 @@ def train(options):
                 continue            
             loss = sum(losses)
             losses = [l.data.item() for l in losses]
-            print("loss printed here")
+            # print("loss printed here")
             epoch_losses.append(losses)
             status = str(epoch + 1) + ' loss: '
             for l in losses:
@@ -350,7 +352,7 @@ def train(options):
 
             sys.stdout.write('\r ' + str(sampleIndex) + ' ' + status)
             sys.stdout.flush()
-            print("end--write of loss")
+            # print("end--write of loss")
             
             data_iterator.set_description(status)
 
@@ -372,15 +374,20 @@ def train(options):
                     pass
                 pass
 
-            if (sampleIndex + 1) % options.numTrainingImages == 0:
+            # if (sampleIndex + 1) % options.numTrainingImages == 0:
                 ## Save models
-                print('loss', np.array(epoch_losses).mean(0))
-                torch.save(model.state_dict(), options.checkpoint_dir + '/checkpoint.pth')
-                torch.save(refine_model.state_dict(), options.checkpoint_dir + '/checkpoint_refine.pth')                
-                torch.save(optimizer.state_dict(), options.checkpoint_dir + '/optim.pth')
-                pass
-            continue
-        continue
+
+                # pass
+            # continue
+        # continue
+        print('loss', np.array(epoch_losses).mean(0))
+        torch.save(model.state_dict(), options.checkpoint_dir + '/doepd_planer_checkpoint.pth')
+        torch.save(model.state_dict(), '/content/drive/MyDrive/doepd/weights/doepd_planer_checkpoint.pth')
+        torch.save(refine_model.state_dict(), options.checkpoint_dir + '/doepd_planer_checkpoint_refine.pth')
+        torch.save(refine_model.state_dict(), '/content/drive/MyDrive/doepd/weights/doepd_planer_checkpoint_refine.pth')                
+        torch.save(optimizer.state_dict(), options.checkpoint_dir + '/doepd_planer_optim.pth')
+        torch.save(optimizer.state_dict(), '/content/drive/MyDrive/doepd/weights/doepd_planer_optim.pth')
+        print(f"Completed epoch {sampleIndex}")
     return
 
 
